@@ -1,4 +1,8 @@
+import numpy as np
 from scipy.stats import trim_mean
+from scipy.stats import kstest
+
+__all__ = ["point_metrics", "pdf_metrics"]
 
 
 class point_metrics(object):
@@ -54,6 +58,9 @@ class point_metrics(object):
         delta_z_binned = self.calc_bins(z_est, z_true, z_max, n_bins)
         stdev_iqr_results = []
         for delta_z_data in delta_z_binned:
+            if len(delta_z_data) == 0:
+                stdev_iqr_results.append(np.nan)
+                continue
             bin_25 = np.percentile(delta_z_data, 25.)
             bin_75 = np.percentile(delta_z_data, 75.)
             diff = bin_75 - bin_25
@@ -66,6 +73,9 @@ class point_metrics(object):
         delta_z_binned = self.calc_bins(z_est, z_true, z_max, n_bins)
         outlier_frac_results = []
         for delta_z_data, stdev_iqr_val in zip(delta_z_binned, stdev_iqr_results):
+            if len(delta_z_data) == 0:
+                outlier_frac_results.append(np.nan)
+                continue
             if 3.*stdev_iqr_val < 0.06:
                 outlier_thresh = 0.06
             else:
@@ -109,6 +119,11 @@ class pdf_metrics(object):
 
         below_true_z = np.where(pdf_redshifts < true_z)
 
-        pit_value = np.sum(pdf_z[below_true_z])
+        pit_value = 0.
+        pit_value += np.nansum(pdf_z[below_true_z])
 
         return pit_value
+
+    def calc_pit_ks(self, pit_vals):
+
+        return kstest(pit_vals, 'uniform')
