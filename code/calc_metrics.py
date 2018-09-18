@@ -1,7 +1,7 @@
 from scipy.stats import trim_mean
 
 
-class calc_metrics(object):
+class point_metrics(object):
 
     def __init__(self):
 
@@ -77,3 +77,38 @@ class calc_metrics(object):
             outlier_frac = len(outliers)/total_bin_obj
             outlier_frac_results.append(outlier_frac)
         return np.array(outlier_frac_results)
+
+
+class pdf_metrics(object):
+
+    def __init__(self):
+
+        return
+
+    def calc_pit(self, true_z, pdf_redshifts, pdf_z):
+
+        """
+        Parameters:
+        -----------
+
+        true_z: float
+          The true redshift of the object.
+
+        pdf_redshifts: numpy array
+          The redshift values of the pdf array.
+
+        pdf_z: numpy array
+          The photo-z pdf at the redshifts of `pdf_redshifts`.
+
+        Returns:
+        --------
+
+        pit_value: float
+          The PIT value for the true_z, photo-z pdf input.
+        """
+
+        below_true_z = np.where(pdf_redshifts < true_z)
+
+        pit_value = np.sum(pdf_z[below_true_z])
+
+        return pit_value
