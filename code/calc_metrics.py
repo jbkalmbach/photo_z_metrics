@@ -13,6 +13,30 @@ class point_metrics(object):
 
     def calc_bins(self, z_est, z_true, z_max, n_bins):
 
+        """
+        Sort the delta_z data into redshift bins in z_true. Delta_z is
+        defined as (z_true - z_est) / (1. + z_true).
+
+        Parameters
+        ----------
+        z_est: numpy array
+          The photo-z point estimates.
+
+        z_true: numpy array
+          The true photo-z values.
+
+        z_max: float
+          The edge of the highest redshift bin wanted.
+
+        n_bins: int
+          The number of redshift bins between 0 and z_max.
+
+        Output:
+        -------
+        delta_z_binned: numpy array
+          The binned delta_z values.
+        """
+
         delta_z = (z_true - z_est) / (1. + z_true)
         bin_vals = [(float(i)/n_bins)*z_max for i in range(n_bins)]
         bin_vals.append(float(z_max))
@@ -22,9 +46,69 @@ class point_metrics(object):
         idx_bins = z_true_sort.searchsorted(bin_vals)
         delta_z_binned = [delta_z_sort[idx_bins[i]:idx_bins[i+1]] for i in range(n_bins)]
 
-        return delta_z_binned
+        return np.array(delta_z_binned)
 
     def photo_z_bias(self, z_est, z_true, z_max, n_bins):
+
+        """
+        Calculate the bias in each bin as a function of true redshift. Bias
+        is the mean delta_z of the bin where delta_z is defined as
+        (z_true - z_est) / (1. + z_true).
+
+        Parameters
+        ----------
+        z_est: numpy array
+          The photo-z point estimates.
+
+        z_true: numpy array
+          The true photo-z values.
+
+        z_max: float
+          The edge of the highest redshift bin wanted.
+
+        n_bins: int
+          The number of redshift bins between 0 and z_max.
+
+        Output:
+        -------
+        bias_results: numpy array
+          The bias as a function of true redshift.
+        """
+
+        delta_z_binned = self.calc_bins(z_est, z_true, z_max, n_bins)
+        bias_results = []
+        for delta_z_data in delta_z_binned:
+            bin_mean = np.mean(delta_z_data)
+            bias_results.append(bin_mean)
+        return np.array(bias_results)
+
+    def photo_z_robust_bias(self, z_est, z_true, z_max, n_bins):
+
+        """
+        Calculate the robust bias in each bin as a function of true redshift.
+        Robust bias is the trimmed mean delta_z of the bin where delta_z
+        is defined as (z_true - z_est) / (1. + z_true) and we trim the highest
+        and lowest 25% of values.
+
+        Parameters
+        ----------
+        z_est: numpy array
+          The photo-z point estimates.
+
+        z_true: numpy array
+          The true photo-z values.
+
+        z_max: float
+          The edge of the highest redshift bin wanted.
+
+        n_bins: int
+          The number of redshift bins between 0 and z_max.
+
+        Output:
+        -------
+        bias_results: numpy array
+          The robust bias as a function of true redshift.
+        """
 
         delta_z_binned = self.calc_bins(z_est, z_true, z_max, n_bins)
         bias_results = []
@@ -33,16 +117,33 @@ class point_metrics(object):
             bias_results.append(trimmed_mean)
         return np.array(bias_results)
 
-    def photo_z_abs_bias(self, z_est, z_true, z_max, n_bins):
-
-        delta_z_binned = self.calc_bins(z_est, z_true, z_max, n_bins)
-        bias_results = []
-        for delta_z_data in delta_z_binned:
-            trimmed_mean = trim_mean(np.abs(delta_z_data), .25)
-            bias_results.append(trimmed_mean)
-        return np.array(bias_results)
-
     def photo_z_stdev(self, z_est, z_true, z_max, n_bins):
+
+        """
+        Calculate the standard deviation in each bin as a
+        function of true redshift. Standard deviation is defined
+        as the standard deviation of delta_z where delta_z
+        is defined as (z_true - z_est) / (1. + z_true).
+
+        Parameters
+        ----------
+        z_est: numpy array
+          The photo-z point estimates.
+
+        z_true: numpy array
+          The true photo-z values.
+
+        z_max: float
+          The edge of the highest redshift bin wanted.
+
+        n_bins: int
+          The number of redshift bins between 0 and z_max.
+
+        Output:
+        -------
+        stdev_results: numpy array
+          The standard deviation as a function of true redshift.
+        """
 
         delta_z_binned = self.calc_bins(z_est, z_true, z_max, n_bins)
         stdev_results = []
@@ -53,7 +154,34 @@ class point_metrics(object):
             stdev_results.append(np.sqrt(diffs_sq_mean))
         return np.array(stdev_results)
 
-    def photo_z_stdev_iqr(self, z_est, z_true, z_max, n_bins):
+    def photo_z_robust_stdev(self, z_est, z_true, z_max, n_bins):
+
+        """
+        Calculate the robust standard deviation in each bin as a
+        function of true redshift. Robust standard deviation is defined
+        as the standard deviation of delta_z in the bin where delta_z
+        is defined as (z_true - z_est) / (1. + z_true) and we trim
+        the highest and lowest 25% of delta_z values.
+
+        Parameters
+        ----------
+        z_est: numpy array
+          The photo-z point estimates.
+
+        z_true: numpy array
+          The true photo-z values.
+
+        z_max: float
+          The edge of the highest redshift bin wanted.
+
+        n_bins: int
+          The number of redshift bins between 0 and z_max.
+
+        Output:
+        -------
+        stdev_results: numpy array
+          The robust standard deviation as a function of true redshift.
+        """
 
         delta_z_binned = self.calc_bins(z_est, z_true, z_max, n_bins)
         stdev_iqr_results = []
@@ -68,6 +196,33 @@ class point_metrics(object):
         return np.array(stdev_iqr_results)
 
     def photo_z_outlier_frac(self, z_est, z_true, z_max, n_bins):
+
+        """
+        Calculate the outlier fraction in each bin as a
+        function of true redshift. Outlier fraction is defined
+        as a delta_z value of more than 0.06 or 3 * (robust standard
+        deviation) of the bin where definitions are the same as
+        above.
+
+        Parameters
+        ----------
+        z_est: numpy array
+          The photo-z point estimates.
+
+        z_true: numpy array
+          The true photo-z values.
+
+        z_max: float
+          The edge of the highest redshift bin wanted.
+
+        n_bins: int
+          The number of redshift bins between 0 and z_max.
+
+        Output:
+        -------
+        outlier_frac_results: numpy array
+          The outlier fraction as a function of true redshift.
+        """
 
         stdev_iqr_results = self.photo_z_stdev_iqr(z_est, z_true, z_max, n_bins)
         delta_z_binned = self.calc_bins(z_est, z_true, z_max, n_bins)
@@ -126,4 +281,25 @@ class pdf_metrics(object):
 
     def calc_pit_ks(self, pit_vals):
 
+        """
+        Return the value of a K-S test of the PIT distribution
+        to a uniform distribution.
+
+        Input
+        -----
+        pit_vals: numpy array
+          The PIT values from `calc_pit`.
+
+        Output
+        ------
+        scipy kstest output: scipy `KstestResult` object
+          Returns an object with the test results and information.
+          See scipy documentation for more.
+        """
+
         return kstest(pit_vals, 'uniform')
+
+    # def stack_pdfs(self, true_z, pdf_redshifts, pdf_z):
+
+    #     stack_pdf = np.sum(pdf_z, axis=0)
+    #     true_z_dist = 
