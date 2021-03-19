@@ -2,10 +2,10 @@ import numpy as np
 from scipy.stats import trim_mean
 from scipy.stats import kstest
 
-__all__ = ["point_metrics", "pdf_metrics"]
+__all__ = ["pointMetrics"]
 
 
-class point_metrics(object):
+class pointMetrics(object):
 
     def __init__(self):
 
@@ -47,6 +47,44 @@ class point_metrics(object):
         delta_z_binned = [delta_z_sort[idx_bins[i]:idx_bins[i+1]] for i in range(n_bins)]
 
         return np.array(delta_z_binned)
+
+    # def calc_bins(self, z_est, z_true, z_max, n_bins):
+
+    #     """
+    #     Sort the delta_z data into redshift bins in z_true. Delta_z is
+    #     defined as (z_true - z_est) / (1. + z_true).
+
+    #     Parameters
+    #     ----------
+    #     z_est: numpy array
+    #       The photo-z point estimates.
+
+    #     z_true: numpy array
+    #       The true photo-z values.
+
+    #     z_max: float
+    #       The edge of the highest redshift bin wanted.
+
+    #     n_bins: int
+    #       The number of redshift bins between 0 and z_max.
+
+    #     Output:
+    #     -------
+    #     delta_z_binned: numpy array
+    #       The binned delta_z values.
+    #     """
+
+    #     delta_z = (z_true - z_est) / (1. + z_true)
+    #     bin_vals = list(np.percentile(z_true, np.linspace(0, 100, n_bins+1)))
+    #     #bin_vals = [(float(i)/n_bins)*z_max for i in range(n_bins)]
+    #     bin_vals.append(float(z_max))
+    #     idx_sort = z_true.argsort()
+    #     delta_z_sort = delta_z[idx_sort]
+    #     z_true_sort = z_true[idx_sort]
+    #     idx_bins = z_true_sort.searchsorted(bin_vals)
+    #     delta_z_binned = [delta_z_sort[idx_bins[i]:idx_bins[i+1]] for i in range(n_bins)]
+
+    #     return np.array(delta_z_binned)
 
     def photo_z_bias(self, z_est, z_true, z_max, n_bins):
 
@@ -224,17 +262,20 @@ class point_metrics(object):
           The outlier fraction as a function of true redshift.
         """
 
-        stdev_iqr_results = self.photo_z_stdev_iqr(z_est, z_true, z_max, n_bins)
+        stdev_iqr_results = self.photo_z_robust_stdev(z_est, z_true, z_max, n_bins)
         delta_z_binned = self.calc_bins(z_est, z_true, z_max, n_bins)
         outlier_frac_results = []
         for delta_z_data, stdev_iqr_val in zip(delta_z_binned, stdev_iqr_results):
             if len(delta_z_data) == 0:
                 outlier_frac_results.append(np.nan)
                 continue
-            if 3.*stdev_iqr_val < 0.06:
-                outlier_thresh = 0.06
-            else:
-                outlier_thresh = 3.*stdev_iqr_val
+            #if 3.*stdev_iqr_val < 0.06:
+            #    outlier_thresh = 0.06
+            #if 3.*stdev_iqr_val < 0.1:
+            #    outlier_thresh = 0.1
+            #else:
+            #    outlier_thresh = 3.*stdev_iqr_val
+            outlier_thresh = 3.*0.05
             # print outlier_thresh, np.std(delta_z_data), len(delta_z_data), np.max(delta_z_data), np.min(delta_z_data)
             total_bin_obj = float(len(delta_z_data))
             outliers = np.where(np.abs(delta_z_data) > outlier_thresh)[0]
@@ -243,63 +284,3 @@ class point_metrics(object):
             outlier_frac_results.append(outlier_frac)
         return np.array(outlier_frac_results)
 
-
-class pdf_metrics(object):
-
-    def __init__(self):
-
-        return
-
-    def calc_pit(self, true_z, pdf_redshifts, pdf_z):
-
-        """
-        Parameters:
-        -----------
-
-        true_z: float
-          The true redshift of the object.
-
-        pdf_redshifts: numpy array
-          The redshift values of the pdf array.
-
-        pdf_z: numpy array
-          The photo-z pdf at the redshifts of `pdf_redshifts`.
-
-        Returns:
-        --------
-
-        pit_value: float
-          The PIT value for the true_z, photo-z pdf input.
-        """
-
-        below_true_z = np.where(pdf_redshifts < true_z)
-
-        pit_value = 0.
-        pit_value += np.nansum(pdf_z[below_true_z])
-
-        return pit_value
-
-    def calc_pit_ks(self, pit_vals):
-
-        """
-        Return the value of a K-S test of the PIT distribution
-        to a uniform distribution.
-
-        Input
-        -----
-        pit_vals: numpy array
-          The PIT values from `calc_pit`.
-
-        Output
-        ------
-        scipy kstest output: scipy `KstestResult` object
-          Returns an object with the test results and information.
-          See scipy documentation for more.
-        """
-
-        return kstest(pit_vals, 'uniform')
-
-    # def stack_pdfs(self, true_z, pdf_redshifts, pdf_z):
-
-    #     stack_pdf = np.sum(pdf_z, axis=0)
-    #     true_z_dist = 
