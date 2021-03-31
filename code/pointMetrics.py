@@ -7,11 +7,25 @@ __all__ = ["pointMetrics"]
 
 class pointMetrics(object):
 
-    def __init__(self):
+    def __init__(self, bin_with='z_est'):
+        """Calculate point estimate metrics for photo-z.
+
+        Parameters
+        ----------
+        bin_with: str, 'z_est' or 'z_true', optional, default='z_est'
+            Which value to use for binning the redshifts. If 'z_true'
+            then when plotting bins will be calculated based upon
+            'z_true' and vice versa when set to 'z_est'.
+        """
+
+        self.bin_with = bin_with
+
+        if bin_with not in ['z_est', 'z_true']:
+            raise ValueError(f'{bin_with} is not recognized bin_with value. Use "z_true" or "z_est".')
 
         return
 
-    def calc_bins(self, z_est, z_true, z_max, n_bins):
+    def calc_bins(self, z_est, z_true, z_max, n_bins, return_bins=False):
 
         """
         Sort the delta_z data into redshift bins in z_true. Delta_z is
@@ -20,71 +34,46 @@ class pointMetrics(object):
         Parameters
         ----------
         z_est: numpy array
-          The photo-z point estimates.
-
+            The photo-z point estimates.
         z_true: numpy array
-          The true photo-z values.
-
+            The true photo-z values.
         z_max: float
-          The edge of the highest redshift bin wanted.
-
+            The edge of the highest redshift bin wanted.
         n_bins: int
-          The number of redshift bins between 0 and z_max.
+            The number of redshift bins between 0 and z_max.
+        return_bins: bool, optional, default=False
+            If True then will return the bin_edges.
 
         Output:
         -------
+        bin_vals: numpy array
+            The values of the bin edges. Only returned when return_bins is True.
         delta_z_binned: numpy array
           The binned delta_z values.
         """
 
-        delta_z = (z_true - z_est) / (1. + z_true)
         bin_vals = [(float(i)/n_bins)*z_max for i in range(n_bins)]
         bin_vals.append(float(z_max))
-        idx_sort = z_true.argsort()
-        delta_z_sort = delta_z[idx_sort]
-        z_true_sort = z_true[idx_sort]
-        idx_bins = z_true_sort.searchsorted(bin_vals)
+        if self.bin_with == 'z_est':
+            delta_z = (z_true - z_est) / (1. + z_est)
+            idx_sort = z_est.argsort()
+            delta_z_sort = delta_z[idx_sort]
+            z_est_sort = z_est[idx_sort]
+            idx_bins = z_est_sort.searchsorted(bin_vals)
+        elif self.bin_with == 'z_true':
+            delta_z = (z_true - z_est) / (1. + z_true)
+            idx_sort = z_true.argsort()
+            delta_z_sort = delta_z[idx_sort]
+            z_true_sort = z_true[idx_sort]
+            idx_bins = z_true_sort.searchsorted(bin_vals)
+        else:
+            raise ValueError(f'{bin_with} is not recognized bin_with value. Use "z_true" or "z_est".')
         delta_z_binned = [delta_z_sort[idx_bins[i]:idx_bins[i+1]] for i in range(n_bins)]
 
-        return np.array(delta_z_binned)
-
-    # def calc_bins(self, z_est, z_true, z_max, n_bins):
-
-    #     """
-    #     Sort the delta_z data into redshift bins in z_true. Delta_z is
-    #     defined as (z_true - z_est) / (1. + z_true).
-
-    #     Parameters
-    #     ----------
-    #     z_est: numpy array
-    #       The photo-z point estimates.
-
-    #     z_true: numpy array
-    #       The true photo-z values.
-
-    #     z_max: float
-    #       The edge of the highest redshift bin wanted.
-
-    #     n_bins: int
-    #       The number of redshift bins between 0 and z_max.
-
-    #     Output:
-    #     -------
-    #     delta_z_binned: numpy array
-    #       The binned delta_z values.
-    #     """
-
-    #     delta_z = (z_true - z_est) / (1. + z_true)
-    #     bin_vals = list(np.percentile(z_true, np.linspace(0, 100, n_bins+1)))
-    #     #bin_vals = [(float(i)/n_bins)*z_max for i in range(n_bins)]
-    #     bin_vals.append(float(z_max))
-    #     idx_sort = z_true.argsort()
-    #     delta_z_sort = delta_z[idx_sort]
-    #     z_true_sort = z_true[idx_sort]
-    #     idx_bins = z_true_sort.searchsorted(bin_vals)
-    #     delta_z_binned = [delta_z_sort[idx_bins[i]:idx_bins[i+1]] for i in range(n_bins)]
-
-    #     return np.array(delta_z_binned)
+        if return_bins is True:
+            return bin_vals, np.array(delta_z_binned)
+        else:
+            return np.array(delta_z_binned)
 
     def photo_z_bias(self, z_est, z_true, z_max, n_bins):
 
@@ -266,20 +255,9 @@ class pointMetrics(object):
         delta_z_binned = self.calc_bins(z_est, z_true, z_max, n_bins)
         outlier_frac_results = []
         for delta_z_data, stdev_iqr_val in zip(delta_z_binned, stdev_iqr_results):
-            if len(delta_z_data) == 0:
-                outlier_frac_results.append(np.nan)
-                continue
-            #if 3.*stdev_iqr_val < 0.06:
-            #    outlier_thresh = 0.06
-            #if 3.*stdev_iqr_val < 0.1:
-            #    outlier_thresh = 0.1
-            #else:
-            #    outlier_thresh = 3.*stdev_iqr_val
-            outlier_thresh = 3.*0.05
-            # print outlier_thresh, np.std(delta_z_data), len(delta_z_data), np.max(delta_z_data), np.min(delta_z_data)
+            outlier_bin_thresh = 3.*stdev_iqr_val
             total_bin_obj = float(len(delta_z_data))
-            outliers = np.where(np.abs(delta_z_data) > outlier_thresh)[0]
-            # print outliers
+            outliers = np.where((np.abs(delta_z_data) > outlier_bin_thresh) & (np.abs(delta_z_data) > 0.06))[0]
             outlier_frac = len(outliers)/total_bin_obj
             outlier_frac_results.append(outlier_frac)
         return np.array(outlier_frac_results)
